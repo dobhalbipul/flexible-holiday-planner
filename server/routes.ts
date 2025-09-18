@@ -2,9 +2,9 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
-import { bestDatesSearchSchema } from "@shared/schema";
+import { bestDatesSearchSchema, flightSearchSchema } from "@shared/schema";
 
-const flightSearchSchema = z.object({
+const legacyFlightSearchSchema = z.object({
   origin: z.string(),
   destination: z.string(),
   departureDate: z.string(),
@@ -27,7 +27,40 @@ const transportationSearchSchema = z.object({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Flight search
+  // Enhanced flight search with dates
+  app.get("/api/flights", async (req, res) => {
+    try {
+      const { destination, startDate, endDate, travelers, currency } = req.query;
+      
+      const validatedParams = flightSearchSchema.parse({
+        destination,
+        startDate,
+        endDate,
+        travelers: parseInt(travelers as string),
+        currency: currency || "MYR"
+      });
+      
+      const flights = await storage.searchFlightsByDates(
+        validatedParams.destination,
+        validatedParams.startDate,
+        validatedParams.endDate,
+        validatedParams.travelers,
+        validatedParams.currency
+      );
+      
+      res.json(flights);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Invalid search parameters", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to search flights" });
+    }
+  });
+
+  // Legacy flight search (keep for backward compatibility)
   app.get("/api/flights/search/:origin/:destination/:departureDate", async (req, res) => {
     try {
       const { origin, destination, departureDate } = req.params;

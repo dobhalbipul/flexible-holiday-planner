@@ -8,6 +8,7 @@ import { BookingProvider } from "./lib/booking";
 import Home from "@/pages/home";
 import BestDates from "@/pages/best-dates";
 import Flights from "@/pages/flights";
+import Hotels from "@/pages/hotels";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -16,6 +17,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/best-dates" component={BestDates} />
       <Route path="/flights" component={Flights} />
+      <Route path="/hotels" component={Hotels} />
       <Route component={NotFound} />
     </Switch>
   );

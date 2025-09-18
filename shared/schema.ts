@@ -169,6 +169,30 @@ export const bestDatesSearchSchema = z.object({
 
 export type BestDatesSearchRequest = z.infer<typeof bestDatesSearchSchema>;
 
+// Flight search request schema
+export const flightSearchSchema = z.object({
+  destination: z.string(),
+  startDate: z.string(),
+  endDate: z.string(),
+  travelers: z.number().min(1).max(8),
+  currency: z.enum(["MYR", "INR", "USD", "SGD", "VND"]).optional().default("MYR"),
+});
+
+export type FlightSearchRequest = z.infer<typeof flightSearchSchema>;
+
+// Flight search response
+export interface FlightSearchResponse {
+  outboundFlights: Flight[];
+  returnFlights: Flight[];
+  searchCriteria: {
+    destination: string;
+    startDate: string;
+    endDate: string;
+    travelers: number;
+    currency: string;
+  };
+}
+
 // Date range result for API response
 export interface DateRangeResult {
   id: string;

@@ -19,6 +19,31 @@ export interface SelectedDates {
   dateRangeId: string;
 }
 
+export interface SelectedFlight {
+  id: string;
+  airline: string;
+  flightNumber: string;
+  origin: string;
+  destination: string;
+  departureTime: string;
+  arrivalTime: string;
+  departureDate: string;
+  arrivalDate: string;
+  duration: string;
+  stops: string;
+  layoverDuration?: string;
+  layoverLocation?: string;
+  price: string;
+  currency: string;
+}
+
+export interface SelectedFlights {
+  outbound: SelectedFlight | null;
+  return: SelectedFlight | null;
+  totalPrice: number;
+  currency: string;
+}
+
 export interface BookingContextType {
   searchCriteria: SearchCriteria | null;
   setSearchCriteria: (criteria: SearchCriteria) => void;
@@ -26,6 +51,9 @@ export interface BookingContextType {
   selectedDates: SelectedDates | null;
   setSelectedDates: (dates: SelectedDates) => void;
   clearSelectedDates: () => void;
+  selectedFlights: SelectedFlights | null;
+  setSelectedFlights: (flights: SelectedFlights) => void;
+  clearSelectedFlights: () => void;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
 }
@@ -39,13 +67,16 @@ interface BookingProviderProps {
 export function BookingProvider({ children }: BookingProviderProps) {
   const [searchCriteria, setSearchCriteriaState] = useState<SearchCriteria | null>(null);
   const [selectedDates, setSelectedDatesState] = useState<SelectedDates | null>(null);
+  const [selectedFlights, setSelectedFlightsState] = useState<SelectedFlights | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const setSearchCriteria = (criteria: SearchCriteria) => {
     setSearchCriteriaState(criteria);
-    // Clear selected dates when search criteria changes
+    // Clear selected dates and flights when search criteria changes
     setSelectedDatesState(null);
+    setSelectedFlightsState(null);
     sessionStorage.removeItem("bookingSelectedDates");
+    sessionStorage.removeItem("bookingSelectedFlights");
     // Persist search criteria to sessionStorage for page refreshes
     sessionStorage.setItem("bookingSearchCriteria", JSON.stringify(criteria));
   };
@@ -53,25 +84,44 @@ export function BookingProvider({ children }: BookingProviderProps) {
   const clearSearchCriteria = () => {
     setSearchCriteriaState(null);
     setSelectedDatesState(null);
+    setSelectedFlightsState(null);
     sessionStorage.removeItem("bookingSearchCriteria");
     sessionStorage.removeItem("bookingSelectedDates");
+    sessionStorage.removeItem("bookingSelectedFlights");
   };
 
   const setSelectedDates = (dates: SelectedDates) => {
     setSelectedDatesState(dates);
+    // Clear selected flights when dates change
+    setSelectedFlightsState(null);
+    sessionStorage.removeItem("bookingSelectedFlights");
     // Persist selected dates to sessionStorage
     sessionStorage.setItem("bookingSelectedDates", JSON.stringify(dates));
   };
 
   const clearSelectedDates = () => {
     setSelectedDatesState(null);
+    setSelectedFlightsState(null);
     sessionStorage.removeItem("bookingSelectedDates");
+    sessionStorage.removeItem("bookingSelectedFlights");
+  };
+
+  const setSelectedFlights = (flights: SelectedFlights) => {
+    setSelectedFlightsState(flights);
+    // Persist selected flights to sessionStorage
+    sessionStorage.setItem("bookingSelectedFlights", JSON.stringify(flights));
+  };
+
+  const clearSelectedFlights = () => {
+    setSelectedFlightsState(null);
+    sessionStorage.removeItem("bookingSelectedFlights");
   };
 
   // Load saved data from sessionStorage on mount
   useEffect(() => {
     const savedCriteria = sessionStorage.getItem("bookingSearchCriteria");
     const savedDates = sessionStorage.getItem("bookingSelectedDates");
+    const savedFlights = sessionStorage.getItem("bookingSelectedFlights");
     
     if (savedCriteria) {
       try {
@@ -90,6 +140,15 @@ export function BookingProvider({ children }: BookingProviderProps) {
         sessionStorage.removeItem("bookingSelectedDates");
       }
     }
+
+    if (savedFlights) {
+      try {
+        setSelectedFlightsState(JSON.parse(savedFlights));
+      } catch (error) {
+        console.warn("Failed to parse saved selected flights:", error);
+        sessionStorage.removeItem("bookingSelectedFlights");
+      }
+    }
   }, []);
 
   return (
@@ -101,6 +160,9 @@ export function BookingProvider({ children }: BookingProviderProps) {
         selectedDates,
         setSelectedDates,
         clearSelectedDates,
+        selectedFlights,
+        setSelectedFlights,
+        clearSelectedFlights,
         isLoading,
         setIsLoading,
       }}

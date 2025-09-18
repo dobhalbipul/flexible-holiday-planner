@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Flight, type InsertFlight, type Hotel, type InsertHotel, type Restaurant, type InsertRestaurant, type Activity, type InsertActivity, type Itinerary, type InsertItinerary, type Transportation, type InsertTransportation, type DateRangeResult, type BestDatesResponse } from "@shared/schema";
+import { type User, type InsertUser, type Flight, type InsertFlight, type Hotel, type InsertHotel, type Restaurant, type InsertRestaurant, type Activity, type InsertActivity, type Itinerary, type InsertItinerary, type Transportation, type InsertTransportation, type DateRangeResult, type BestDatesResponse, type FlightSearchResponse } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -7,6 +7,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   
   searchFlights(origin: string, destination: string, departureDate: string): Promise<Flight[]>;
+  searchFlightsByDates(destination: string, startDate: string, endDate: string, travelers: number, currency?: string): Promise<FlightSearchResponse>;
   getFlight(id: string): Promise<Flight | undefined>;
   
   searchHotels(city: string, checkIn: string, checkOut: string): Promise<Hotel[]>;
@@ -415,6 +416,126 @@ export class MemStorage implements IStorage {
         flight.departureDate === departureDate
       )
       .sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+  }
+
+  async searchFlightsByDates(destination: string, startDate: string, endDate: string, travelers: number, currency = "MYR"): Promise<FlightSearchResponse> {
+    // Map destination to airport codes
+    const destinationMap = {
+      "hoi-an-da-nang": "DAD",
+      "hanoi-halong": "HAN", 
+      "ho-chi-minh": "SGN",
+      "phu-quoc": "PQC",
+    };
+    
+    const destinationCode = destinationMap[destination as keyof typeof destinationMap] || "DAD";
+    const origin = "PEN"; // Penang
+
+    // Generate outbound flights for start date
+    const outboundFlights = this.generateFlightsForDate(origin, destinationCode, startDate, currency);
+    
+    // Generate return flights for end date (reverse origin/destination)
+    const returnFlights = this.generateFlightsForDate(destinationCode, origin, endDate, currency);
+
+    return {
+      outboundFlights,
+      returnFlights,
+      searchCriteria: {
+        destination,
+        startDate,
+        endDate,
+        travelers,
+        currency,
+      },
+    };
+  }
+
+  private generateFlightsForDate(origin: string, destination: string, date: string, currency: string): Flight[] {
+    // Base flight templates
+    const flightTemplates = [
+      {
+        airline: "Malaysia Airlines",
+        flightNumber: `MH780 + VN1547`,
+        departureTime: "08:30",
+        arrivalTime: "15:45",
+        duration: "7h 15m",
+        stops: "1 stop in KUL",
+        layoverDuration: "2h 30m",
+        layoverLocation: "Kuala Lumpur",
+        basePrice: 1045,
+      },
+      {
+        airline: "Vietnam Airlines", 
+        flightNumber: `VN634 + VN1203`,
+        departureTime: "10:15",
+        arrivalTime: "18:20",
+        duration: "8h 05m",
+        stops: "1 stop in SGN",
+        layoverDuration: "3h 15m",
+        layoverLocation: "Ho Chi Minh",
+        basePrice: 1105,
+      },
+      {
+        airline: "AirAsia",
+        flightNumber: `AK6148 + VN1456`,
+        departureTime: "06:45", 
+        arrivalTime: "16:30",
+        duration: "9h 45m",
+        stops: "1 stop in KUL",
+        layoverDuration: "4h 20m",
+        layoverLocation: "Kuala Lumpur",
+        basePrice: 965,
+      },
+      {
+        airline: "Scoot",
+        flightNumber: `TR409 + VN1289`,
+        departureTime: "14:20",
+        arrivalTime: "22:15",
+        duration: "7h 55m",
+        stops: "1 stop in SIN",
+        layoverDuration: "2h 45m",
+        layoverLocation: "Singapore",
+        basePrice: 1025,
+      },
+      {
+        airline: "Jetstar Asia",
+        flightNumber: `3K582 + VN1678`,
+        departureTime: "12:30",
+        arrivalTime: "21:45",
+        duration: "9h 15m",
+        stops: "1 stop in SIN",
+        layoverDuration: "3h 50m",
+        layoverLocation: "Singapore",
+        basePrice: 1135,
+      },
+    ];
+
+    return flightTemplates.map((template, index) => {
+      // Add some price variation
+      const priceVariation = 0.9 + (Math.random() * 0.2); // 90-110% of base price
+      const basePriceMYR = template.basePrice * priceVariation;
+      
+      // Convert to target currency
+      const finalPrice = currency === "MYR" ? basePriceMYR : 
+        this.convertCurrency(basePriceMYR, "MYR", currency);
+
+      return {
+        id: randomUUID(),
+        airline: template.airline,
+        flightNumber: template.flightNumber,
+        origin,
+        destination,
+        departureTime: template.departureTime,
+        arrivalTime: template.arrivalTime,
+        departureDate: date,
+        arrivalDate: date,
+        duration: template.duration,
+        stops: template.stops,
+        layoverDuration: template.layoverDuration,
+        layoverLocation: template.layoverLocation,
+        price: Math.round(finalPrice).toString(),
+        currency,
+      };
+    }).sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
   }
 
   async getFlight(id: string): Promise<Flight | undefined> {
