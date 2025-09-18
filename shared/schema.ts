@@ -245,3 +245,78 @@ export interface BestDatesResponse {
   averagePrice: number;
   currency: string;
 }
+
+// Supported currencies for payment processing
+export const supportedCurrencies = ["MYR", "INR", "USD", "SGD", "VND"] as const;
+export type SupportedCurrency = typeof supportedCurrencies[number];
+
+// Secure payment request schema - NO client-supplied amounts!
+export const securePaymentRequestSchema = z.object({
+  // Server will calculate these from booking data - never trust client amounts
+  bookingDetails: z.object({
+    destination: z.string().min(1),
+    travelers: z.number().min(1).max(8),
+    dates: z.object({
+      startDate: z.string(),
+      endDate: z.string(),
+      duration: z.number().min(1)
+    }),
+    flights: z.object({
+      outbound: z.object({
+        id: z.string(),
+        price: z.number().positive(),
+        currency: z.enum(supportedCurrencies)
+      }),
+      return: z.object({
+        id: z.string(),
+        price: z.number().positive(), 
+        currency: z.enum(supportedCurrencies)
+      }).optional(),
+      totalPrice: z.number().positive(),
+      currency: z.enum(supportedCurrencies)
+    }),
+    hotels: z.object({
+      selectedHotels: z.array(z.object({
+        id: z.string(),
+        pricePerNight: z.number().positive(),
+        nights: z.number().positive(),
+        totalPrice: z.number().positive(),
+        currency: z.enum(supportedCurrencies)
+      })),
+      totalPrice: z.number().positive(),
+      currency: z.enum(supportedCurrencies)
+    }),
+    itinerary: z.object({
+      selectedActivities: z.array(z.object({
+        id: z.string(),
+        price: z.number().positive(),
+        currency: z.enum(supportedCurrencies)
+      })),
+      totalActivityCost: z.number().min(0),
+      currency: z.enum(supportedCurrencies)
+    }).optional()
+  }),
+  // Idempotency key to prevent duplicate payments
+  idempotencyKey: z.string().min(1)
+});
+
+export type SecurePaymentRequest = z.infer<typeof securePaymentRequestSchema>;
+
+// Booking confirmation schema for post-payment persistence
+export const bookingConfirmationSchema = z.object({
+  id: z.string(),
+  paymentIntentId: z.string(),
+  destination: z.string(),
+  travelers: z.number(),
+  startDate: z.string(),
+  endDate: z.string(),
+  totalAmount: z.number(),
+  currency: z.enum(supportedCurrencies),
+  flightDetails: z.any(),
+  hotelDetails: z.any(),
+  activityDetails: z.any().optional(),
+  status: z.enum(["confirmed", "pending", "failed"]),
+  createdAt: z.string()
+});
+
+export type BookingConfirmation = z.infer<typeof bookingConfirmationSchema>;

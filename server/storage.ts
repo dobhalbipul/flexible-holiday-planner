@@ -17,6 +17,7 @@ export interface IStorage {
   getRestaurantsByCity(city: string, cuisine?: string): Promise<Restaurant[]>;
   
   getActivitiesByCity(city: string): Promise<Activity[]>;
+  getActivity(id: string): Promise<Activity | undefined>;
   
   getTransportationOptions(from: string, to: string): Promise<Transportation[]>;
   
@@ -599,6 +600,10 @@ export class MemStorage implements IStorage {
   async getActivitiesByCity(city: string): Promise<Activity[]> {
     return Array.from(this.activities.values())
       .filter(activity => activity.city === city);
+  }
+
+  async getActivity(id: string): Promise<Activity | undefined> {
+    return this.activities.get(id);
   }
 
   async getTransportationOptions(from: string, to: string): Promise<Transportation[]> {

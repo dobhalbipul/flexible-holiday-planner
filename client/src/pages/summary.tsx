@@ -86,8 +86,8 @@ export default function Summary() {
       alert("Please accept the terms and conditions to proceed.");
       return;
     }
-    // In a real app, this would navigate to payment processing
-    alert("In a real application, this would redirect to secure payment processing.");
+    // Navigate to payment page with all booking details preserved in context
+    setLocation("/payment");
   };
 
   if (!searchCriteria || !selectedDates || !selectedFlights || !selectedHotels) {

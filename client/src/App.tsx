@@ -11,6 +11,8 @@ import Flights from "@/pages/flights";
 import Hotels from "@/pages/hotels";
 import Itinerary from "@/pages/itinerary";
 import Summary from "@/pages/summary";
+import Payment from "@/pages/payment";
+import Confirmation from "@/pages/confirmation";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -22,6 +24,8 @@ function Router() {
       <Route path="/hotels" component={Hotels} />
       <Route path="/itinerary" component={Itinerary} />
       <Route path="/summary" component={Summary} />
+      <Route path="/payment" component={Payment} />
+      <Route path="/confirmation" component={Confirmation} />
       <Route component={NotFound} />
     </Switch>
   );
