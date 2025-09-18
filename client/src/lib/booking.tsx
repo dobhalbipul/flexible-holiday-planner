@@ -44,6 +44,29 @@ export interface SelectedFlights {
   currency: string;
 }
 
+export interface SelectedHotel {
+  id: string;
+  name: string;
+  location: string;
+  city: string;
+  pricePerNight: string;
+  currency: string;
+  rating: string;
+  reviewCount: number;
+  distanceToBeach?: string | null;
+  distanceToLandmark?: string | null;
+  amenities: string[];
+  imageUrl?: string | null;
+  nights: number;
+  totalPrice: number;
+}
+
+export interface SelectedHotels {
+  hotels: SelectedHotel[];
+  totalPrice: number;
+  currency: string;
+}
+
 export interface BookingContextType {
   searchCriteria: SearchCriteria | null;
   setSearchCriteria: (criteria: SearchCriteria) => void;
@@ -54,6 +77,9 @@ export interface BookingContextType {
   selectedFlights: SelectedFlights | null;
   setSelectedFlights: (flights: SelectedFlights) => void;
   clearSelectedFlights: () => void;
+  selectedHotels: SelectedHotels | null;
+  setSelectedHotels: (hotels: SelectedHotels) => void;
+  clearSelectedHotels: () => void;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
 }
@@ -64,19 +90,22 @@ interface BookingProviderProps {
   children: ReactNode;
 }
 
-export function BookingProvider({ children }: BookingProviderProps) {
+export const BookingProvider = ({ children }: BookingProviderProps) => {
   const [searchCriteria, setSearchCriteriaState] = useState<SearchCriteria | null>(null);
   const [selectedDates, setSelectedDatesState] = useState<SelectedDates | null>(null);
   const [selectedFlights, setSelectedFlightsState] = useState<SelectedFlights | null>(null);
+  const [selectedHotels, setSelectedHotelsState] = useState<SelectedHotels | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const setSearchCriteria = (criteria: SearchCriteria) => {
     setSearchCriteriaState(criteria);
-    // Clear selected dates and flights when search criteria changes
+    // Clear selected dates, flights, and hotels when search criteria changes
     setSelectedDatesState(null);
     setSelectedFlightsState(null);
+    setSelectedHotelsState(null);
     sessionStorage.removeItem("bookingSelectedDates");
     sessionStorage.removeItem("bookingSelectedFlights");
+    sessionStorage.removeItem("bookingSelectedHotels");
     // Persist search criteria to sessionStorage for page refreshes
     sessionStorage.setItem("bookingSearchCriteria", JSON.stringify(criteria));
   };
@@ -85,16 +114,20 @@ export function BookingProvider({ children }: BookingProviderProps) {
     setSearchCriteriaState(null);
     setSelectedDatesState(null);
     setSelectedFlightsState(null);
+    setSelectedHotelsState(null);
     sessionStorage.removeItem("bookingSearchCriteria");
     sessionStorage.removeItem("bookingSelectedDates");
     sessionStorage.removeItem("bookingSelectedFlights");
+    sessionStorage.removeItem("bookingSelectedHotels");
   };
 
   const setSelectedDates = (dates: SelectedDates) => {
     setSelectedDatesState(dates);
-    // Clear selected flights when dates change
+    // Clear selected flights and hotels when dates change
     setSelectedFlightsState(null);
+    setSelectedHotelsState(null);
     sessionStorage.removeItem("bookingSelectedFlights");
+    sessionStorage.removeItem("bookingSelectedHotels");
     // Persist selected dates to sessionStorage
     sessionStorage.setItem("bookingSelectedDates", JSON.stringify(dates));
   };
@@ -102,19 +135,37 @@ export function BookingProvider({ children }: BookingProviderProps) {
   const clearSelectedDates = () => {
     setSelectedDatesState(null);
     setSelectedFlightsState(null);
+    setSelectedHotelsState(null);
     sessionStorage.removeItem("bookingSelectedDates");
     sessionStorage.removeItem("bookingSelectedFlights");
+    sessionStorage.removeItem("bookingSelectedHotels");
   };
 
   const setSelectedFlights = (flights: SelectedFlights) => {
     setSelectedFlightsState(flights);
+    // Clear selected hotels when flights change
+    setSelectedHotelsState(null);
+    sessionStorage.removeItem("bookingSelectedHotels");
     // Persist selected flights to sessionStorage
     sessionStorage.setItem("bookingSelectedFlights", JSON.stringify(flights));
   };
 
   const clearSelectedFlights = () => {
     setSelectedFlightsState(null);
+    setSelectedHotelsState(null);
     sessionStorage.removeItem("bookingSelectedFlights");
+    sessionStorage.removeItem("bookingSelectedHotels");
+  };
+
+  const setSelectedHotels = (hotels: SelectedHotels) => {
+    setSelectedHotelsState(hotels);
+    // Persist selected hotels to sessionStorage
+    sessionStorage.setItem("bookingSelectedHotels", JSON.stringify(hotels));
+  };
+
+  const clearSelectedHotels = () => {
+    setSelectedHotelsState(null);
+    sessionStorage.removeItem("bookingSelectedHotels");
   };
 
   // Load saved data from sessionStorage on mount
@@ -122,6 +173,7 @@ export function BookingProvider({ children }: BookingProviderProps) {
     const savedCriteria = sessionStorage.getItem("bookingSearchCriteria");
     const savedDates = sessionStorage.getItem("bookingSelectedDates");
     const savedFlights = sessionStorage.getItem("bookingSelectedFlights");
+    const savedHotels = sessionStorage.getItem("bookingSelectedHotels");
     
     if (savedCriteria) {
       try {
@@ -149,6 +201,15 @@ export function BookingProvider({ children }: BookingProviderProps) {
         sessionStorage.removeItem("bookingSelectedFlights");
       }
     }
+
+    if (savedHotels) {
+      try {
+        setSelectedHotelsState(JSON.parse(savedHotels));
+      } catch (error) {
+        console.warn("Failed to parse saved selected hotels:", error);
+        sessionStorage.removeItem("bookingSelectedHotels");
+      }
+    }
   }, []);
 
   return (
@@ -163,6 +224,9 @@ export function BookingProvider({ children }: BookingProviderProps) {
         selectedFlights,
         setSelectedFlights,
         clearSelectedFlights,
+        selectedHotels,
+        setSelectedHotels,
+        clearSelectedHotels,
         isLoading,
         setIsLoading,
       }}
@@ -172,19 +236,19 @@ export function BookingProvider({ children }: BookingProviderProps) {
   );
 }
 
-export function useBooking() {
+export const useBooking = () => {
   const context = useContext(BookingContext);
   if (context === undefined) {
     throw new Error("useBooking must be used within a BookingProvider");
   }
   return context;
-}
+};
 
 // Helper function to validate search criteria
-export function validateSearchCriteria(criteria: Partial<SearchCriteria>): {
+export const validateSearchCriteria = (criteria: Partial<SearchCriteria>): {
   isValid: boolean;
   errors: string[];
-} {
+} => {
   const errors: string[] = [];
 
   if (!criteria.destination) {
@@ -211,4 +275,4 @@ export function validateSearchCriteria(criteria: Partial<SearchCriteria>): {
     isValid: errors.length === 0,
     errors,
   };
-}
+};

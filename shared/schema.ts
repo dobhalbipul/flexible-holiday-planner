@@ -180,6 +180,29 @@ export const flightSearchSchema = z.object({
 
 export type FlightSearchRequest = z.infer<typeof flightSearchSchema>;
 
+// Hotel search request schema
+export const hotelSearchSchema = z.object({
+  destination: z.string(),
+  checkIn: z.string(),
+  checkOut: z.string(),
+  travelers: z.number().min(1).max(8),
+  currency: z.enum(["MYR", "INR", "USD", "SGD", "VND"]).optional().default("MYR"),
+});
+
+export type HotelSearchRequest = z.infer<typeof hotelSearchSchema>;
+
+// Hotel search response
+export interface HotelSearchResponse {
+  hotels: Hotel[];
+  searchCriteria: {
+    destination: string;
+    checkIn: string;
+    checkOut: string;
+    travelers: number;
+    currency: string;
+  };
+}
+
 // Flight search response
 export interface FlightSearchResponse {
   outboundFlights: Flight[];

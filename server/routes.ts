@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
-import { bestDatesSearchSchema, flightSearchSchema } from "@shared/schema";
+import { bestDatesSearchSchema, flightSearchSchema, hotelSearchSchema } from "@shared/schema";
 
 const legacyFlightSearchSchema = z.object({
   origin: z.string(),
@@ -10,11 +10,6 @@ const legacyFlightSearchSchema = z.object({
   departureDate: z.string(),
 });
 
-const hotelSearchSchema = z.object({
-  city: z.string(),
-  checkIn: z.string(),
-  checkOut: z.string(),
-});
 
 const restaurantSearchSchema = z.object({
   city: z.string(),
@@ -71,7 +66,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Hotel search
+  // Enhanced hotel search with dates
+  app.get("/api/hotels", async (req, res) => {
+    try {
+      const { destination, checkIn, checkOut, travelers, currency } = req.query;
+      
+      const validatedParams = hotelSearchSchema.parse({
+        destination,
+        checkIn,
+        checkOut,
+        travelers: parseInt(travelers as string),
+        currency: currency || "MYR"
+      });
+      
+      const hotels = await storage.searchHotelsByDestination(
+        validatedParams.destination,
+        validatedParams.checkIn,
+        validatedParams.checkOut,
+        validatedParams.travelers,
+        validatedParams.currency
+      );
+      
+      res.json(hotels);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Invalid search parameters", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to search hotels" });
+    }
+  });
+
+  // Legacy hotel search (keep for backward compatibility)
   app.get("/api/hotels/search/:city/:checkIn/:checkOut", async (req, res) => {
     try {
       const { city, checkIn, checkOut } = req.params;

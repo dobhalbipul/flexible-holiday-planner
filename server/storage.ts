@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Flight, type InsertFlight, type Hotel, type InsertHotel, type Restaurant, type InsertRestaurant, type Activity, type InsertActivity, type Itinerary, type InsertItinerary, type Transportation, type InsertTransportation, type DateRangeResult, type BestDatesResponse, type FlightSearchResponse } from "@shared/schema";
+import { type User, type InsertUser, type Flight, type InsertFlight, type Hotel, type InsertHotel, type Restaurant, type InsertRestaurant, type Activity, type InsertActivity, type Itinerary, type InsertItinerary, type Transportation, type InsertTransportation, type DateRangeResult, type BestDatesResponse, type FlightSearchResponse, type HotelSearchResponse } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -11,6 +11,7 @@ export interface IStorage {
   getFlight(id: string): Promise<Flight | undefined>;
   
   searchHotels(city: string, checkIn: string, checkOut: string): Promise<Hotel[]>;
+  searchHotelsByDestination(destination: string, checkIn: string, checkOut: string, travelers: number, currency?: string): Promise<HotelSearchResponse>;
   getHotel(id: string): Promise<Hotel | undefined>;
   
   getRestaurantsByCity(city: string, cuisine?: string): Promise<Restaurant[]>;
@@ -546,6 +547,41 @@ export class MemStorage implements IStorage {
     return Array.from(this.hotels.values())
       .filter(hotel => hotel.city === city)
       .sort((a, b) => parseFloat(a.pricePerNight) - parseFloat(b.pricePerNight));
+  }
+
+  async searchHotelsByDestination(destination: string, checkIn: string, checkOut: string, travelers: number, currency = "MYR"): Promise<HotelSearchResponse> {
+    // Map destinations to their associated cities
+    const destinationToCitiesMap: Record<string, string[]> = {
+      "Vietnam": ["Hoi An", "Da Nang"],
+      "Hoi An": ["Hoi An"],
+      "Da Nang": ["Da Nang"],
+      // Add more destination mappings as needed
+    };
+
+    const targetCities = destinationToCitiesMap[destination] || [destination];
+    
+    const hotels = Array.from(this.hotels.values())
+      .filter(hotel => targetCities.includes(hotel.city))
+      .map(hotel => {
+        // Apply currency conversion if needed (for now, assume all prices are in MYR)
+        // In a real app, you'd apply actual currency conversion here
+        return {
+          ...hotel,
+          currency: currency,
+        };
+      })
+      .sort((a, b) => parseFloat(a.pricePerNight) - parseFloat(b.pricePerNight));
+
+    return {
+      hotels,
+      searchCriteria: {
+        destination,
+        checkIn,
+        checkOut,
+        travelers,
+        currency,
+      },
+    };
   }
 
   async getHotel(id: string): Promise<Hotel | undefined> {
