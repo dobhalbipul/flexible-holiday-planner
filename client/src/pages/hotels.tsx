@@ -28,7 +28,7 @@ export default function Hotels() {
       searchCriteria?.travelers,
       searchCriteria?.currency,
     ],
-    enabled: !!(searchCriteria && selectedDates && selectedFlights),
+    enabled: !!(searchCriteria && selectedDates),
     queryFn: async () => {
       const params = new URLSearchParams({
         destination: searchCriteria!.destination,
@@ -182,7 +182,7 @@ export default function Hotels() {
     );
   };
 
-  if (!searchCriteria || !selectedDates || !selectedFlights || !selectedFlights.outbound || !selectedFlights.return) {
+  if (!searchCriteria || !selectedDates) {
     return (
       <div className="min-h-screen bg-background text-foreground flex items-center justify-center">
         <Card>
@@ -190,7 +190,7 @@ export default function Hotels() {
             <HotelIcon className="h-16 w-16 mx-auto mb-4 opacity-50 text-muted-foreground" />
             <h3 className="text-lg font-medium mb-2">No Hotel Search Available</h3>
             <p className="text-sm text-muted-foreground text-center mb-4">
-              Please select your flights first.
+              Please complete your search criteria and select dates first.
             </p>
             <Button onClick={handleStartOver} data-testid="button-start-over">
               Start New Search
@@ -468,7 +468,7 @@ export default function Hotels() {
                       <span>Flights</span>
                     </div>
                     <span className="font-medium" data-testid="text-trip-flights-total">
-                      {formatCurrency(selectedFlights.totalPrice, selectedFlights.currency)}
+                      {selectedFlights ? formatCurrency(selectedFlights.totalPrice, selectedFlights.currency) : "Not selected"}
                     </span>
                   </div>
                   
@@ -492,10 +492,10 @@ export default function Hotels() {
                       <div className="flex justify-between items-center">
                         <span className="font-semibold">Total Trip Cost</span>
                         <span className="text-xl font-bold text-primary" data-testid="text-trip-total">
-                          {formatCurrency(
+                          {selectedFlights ? formatCurrency(
                             selectedFlights.totalPrice + selectedHotelsData.totalPrice, 
                             selectedHotelsData.currency
-                          )}
+                          ) : formatCurrency(selectedHotelsData.totalPrice, selectedHotelsData.currency)}
                         </span>
                       </div>
                     </>

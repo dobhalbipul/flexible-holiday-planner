@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { bestDatesSearchSchema, flightSearchSchema, hotelSearchSchema, securePaymentRequestSchema, supportedCurrencies, type SupportedCurrency } from "@shared/schema";
 import Stripe from "stripe";
+import { amadeusService } from "./amadeus-service";
 
 if (!process.env.STRIPE_SECRET_KEY) {
   throw new Error('Missing required Stripe secret: STRIPE_SECRET_KEY');
@@ -202,16 +203,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currency: currency || "MYR"
       });
       
-      const hotels = await storage.searchHotelsByDestination(
-        validatedParams.destination,
-        validatedParams.checkIn,
-        validatedParams.checkOut,
-        validatedParams.travelers,
-        validatedParams.currency
-      );
+      let hotels;
+      
+      // Try to use Amadeus API if configured
+      if (amadeusService.isConfigured()) {
+        try {
+          console.log(`[Amadeus] Searching hotels for ${validatedParams.destination}`);
+          
+          // Find hotels by destination
+          const hotelLocations = await amadeusService.findHotelsByDestination(validatedParams.destination);
+          
+          if (hotelLocations.length > 0) {
+            console.log(`[Amadeus] Found ${hotelLocations.length} hotel locations`);
+            
+            // Get hotel IDs for search
+            const hotelIds = hotelLocations.map(loc => loc.hotelId);
+            
+            // Search for offers
+            const searchResponse = await amadeusService.searchHotelOffers(
+              hotelIds,
+              validatedParams.checkIn,
+              validatedParams.checkOut,
+              validatedParams.travelers,
+              validatedParams.currency
+            );
+            
+            console.log(`[Amadeus] Found ${searchResponse.data.length} hotel offers`);
+            
+            // Convert to local format
+            const amadeusHotels = amadeusService.convertAmadeusToLocalFormat(searchResponse.data);
+            
+            hotels = {
+              hotels: amadeusHotels,
+              searchCriteria: {
+                destination: validatedParams.destination,
+                checkIn: validatedParams.checkIn,
+                checkOut: validatedParams.checkOut,
+                travelers: validatedParams.travelers,
+                currency: validatedParams.currency,
+              },
+            };
+            
+            console.log(`[Amadeus] Successfully returning ${amadeusHotels.length} hotels`);
+          } else {
+            console.log(`[Amadeus] No hotel locations found, falling back to mock data`);
+            // Fall back to mock data if no Amadeus results
+            hotels = await storage.searchHotelsByDestination(
+              validatedParams.destination,
+              validatedParams.checkIn,
+              validatedParams.checkOut,
+              validatedParams.travelers,
+              validatedParams.currency
+            );
+          }
+        } catch (amadeusError) {
+          console.error('[Amadeus] Error searching hotels:', amadeusError);
+          
+          // Fall back to mock data on error
+          hotels = await storage.searchHotelsByDestination(
+            validatedParams.destination,
+            validatedParams.checkIn,
+            validatedParams.checkOut,
+            validatedParams.travelers,
+            validatedParams.currency
+          );
+        }
+      } else {
+        console.log('[Hotels] Amadeus not configured, using mock data');
+        
+        // Use mock data if Amadeus is not configured
+        hotels = await storage.searchHotelsByDestination(
+          validatedParams.destination,
+          validatedParams.checkIn,
+          validatedParams.checkOut,
+          validatedParams.travelers,
+          validatedParams.currency
+        );
+      }
       
       res.json(hotels);
     } catch (error) {
+      console.error('[Hotels] Error in hotel search:', error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ 
           message: "Invalid search parameters", 
