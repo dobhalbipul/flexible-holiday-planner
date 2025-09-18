@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
+import { bestDatesSearchSchema } from "@shared/schema";
 
 const flightSearchSchema = z.object({
   origin: z.string(),
@@ -78,6 +79,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(transportation);
     } catch (error) {
       res.status(400).json({ message: "Invalid search parameters" });
+    }
+  });
+
+  // Best dates search
+  app.get("/api/best-dates", async (req, res) => {
+    try {
+      const { destination, month1, month2, travelers, currency } = req.query;
+      
+      // Validate query parameters
+      const validatedParams = bestDatesSearchSchema.parse({
+        destination,
+        month1,
+        month2,
+        travelers: parseInt(travelers as string),
+        currency: currency || "MYR"
+      });
+      
+      const bestDates = await storage.getBestDates(
+        validatedParams.destination,
+        validatedParams.month1,
+        validatedParams.month2,
+        validatedParams.travelers,
+        validatedParams.currency
+      );
+      
+      res.json(bestDates);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Invalid search parameters", 
+          errors: error.errors 
+        });
+      }
+      res.status(500).json({ message: "Failed to search best dates" });
     }
   });
 

@@ -7,6 +7,7 @@ import { CurrencyProvider } from "./lib/currency";
 import { BookingProvider } from "./lib/booking";
 import Home from "@/pages/home";
 import BestDates from "@/pages/best-dates";
+import Flights from "@/pages/flights";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -14,6 +15,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/best-dates" component={BestDates} />
+      <Route path="/flights" component={Flights} />
       <Route component={NotFound} />
     </Switch>
   );

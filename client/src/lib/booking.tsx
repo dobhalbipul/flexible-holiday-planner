@@ -9,10 +9,23 @@ export interface SearchCriteria {
   currency: Currency;
 }
 
+export interface SelectedDates {
+  startDate: string;
+  endDate: string;
+  duration: number;
+  pricePerPerson: number;
+  totalPrice: number;
+  currency: string;
+  dateRangeId: string;
+}
+
 export interface BookingContextType {
   searchCriteria: SearchCriteria | null;
   setSearchCriteria: (criteria: SearchCriteria) => void;
   clearSearchCriteria: () => void;
+  selectedDates: SelectedDates | null;
+  setSelectedDates: (dates: SelectedDates) => void;
+  clearSelectedDates: () => void;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
 }
@@ -25,28 +38,56 @@ interface BookingProviderProps {
 
 export function BookingProvider({ children }: BookingProviderProps) {
   const [searchCriteria, setSearchCriteriaState] = useState<SearchCriteria | null>(null);
+  const [selectedDates, setSelectedDatesState] = useState<SelectedDates | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const setSearchCriteria = (criteria: SearchCriteria) => {
     setSearchCriteriaState(criteria);
-    // Optionally persist to sessionStorage for page refreshes
+    // Clear selected dates when search criteria changes
+    setSelectedDatesState(null);
+    sessionStorage.removeItem("bookingSelectedDates");
+    // Persist search criteria to sessionStorage for page refreshes
     sessionStorage.setItem("bookingSearchCriteria", JSON.stringify(criteria));
   };
 
   const clearSearchCriteria = () => {
     setSearchCriteriaState(null);
+    setSelectedDatesState(null);
     sessionStorage.removeItem("bookingSearchCriteria");
+    sessionStorage.removeItem("bookingSelectedDates");
   };
 
-  // Load criteria from sessionStorage on mount if available
+  const setSelectedDates = (dates: SelectedDates) => {
+    setSelectedDatesState(dates);
+    // Persist selected dates to sessionStorage
+    sessionStorage.setItem("bookingSelectedDates", JSON.stringify(dates));
+  };
+
+  const clearSelectedDates = () => {
+    setSelectedDatesState(null);
+    sessionStorage.removeItem("bookingSelectedDates");
+  };
+
+  // Load saved data from sessionStorage on mount
   useEffect(() => {
     const savedCriteria = sessionStorage.getItem("bookingSearchCriteria");
+    const savedDates = sessionStorage.getItem("bookingSelectedDates");
+    
     if (savedCriteria) {
       try {
         setSearchCriteriaState(JSON.parse(savedCriteria));
       } catch (error) {
         console.warn("Failed to parse saved search criteria:", error);
         sessionStorage.removeItem("bookingSearchCriteria");
+      }
+    }
+
+    if (savedDates) {
+      try {
+        setSelectedDatesState(JSON.parse(savedDates));
+      } catch (error) {
+        console.warn("Failed to parse saved selected dates:", error);
+        sessionStorage.removeItem("bookingSelectedDates");
       }
     }
   }, []);
@@ -57,6 +98,9 @@ export function BookingProvider({ children }: BookingProviderProps) {
         searchCriteria,
         setSearchCriteria,
         clearSearchCriteria,
+        selectedDates,
+        setSelectedDates,
+        clearSelectedDates,
         isLoading,
         setIsLoading,
       }}

@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Flight, type InsertFlight, type Hotel, type InsertHotel, type Restaurant, type InsertRestaurant, type Activity, type InsertActivity, type Itinerary, type InsertItinerary, type Transportation, type InsertTransportation } from "@shared/schema";
+import { type User, type InsertUser, type Flight, type InsertFlight, type Hotel, type InsertHotel, type Restaurant, type InsertRestaurant, type Activity, type InsertActivity, type Itinerary, type InsertItinerary, type Transportation, type InsertTransportation, type DateRangeResult, type BestDatesResponse } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -20,6 +20,8 @@ export interface IStorage {
   
   createItinerary(itinerary: InsertItinerary): Promise<Itinerary>;
   getItinerary(id: string): Promise<Itinerary | undefined>;
+  
+  getBestDates(destination: string, month1: string, month2: string, travelers: number, currency?: string): Promise<BestDatesResponse>;
 }
 
 export class MemStorage implements IStorage {
@@ -469,6 +471,165 @@ export class MemStorage implements IStorage {
 
   async getItinerary(id: string): Promise<Itinerary | undefined> {
     return this.itineraries.get(id);
+  }
+
+  // Exchange rates relative to MYR (Malaysian Ringgit) - same as frontend
+  private static readonly EXCHANGE_RATES: Record<string, number> = {
+    MYR: 1.0,      // Base currency
+    INR: 18.5,     // 1 MYR = 18.5 INR
+    USD: 0.21,     // 1 MYR = 0.21 USD
+    SGD: 0.29,     // 1 MYR = 0.29 SGD
+    VND: 5250,     // 1 MYR = 5250 VND
+  };
+
+  private convertCurrency(amount: number, fromCurrency: string, toCurrency: string): number {
+    // Convert to MYR first (base currency)
+    const amountInMYR = amount / MemStorage.EXCHANGE_RATES[fromCurrency];
+    
+    // Convert from MYR to target currency
+    const convertedAmount = amountInMYR * MemStorage.EXCHANGE_RATES[toCurrency];
+    
+    return Math.round(convertedAmount * 100) / 100; // Round to 2 decimal places
+  }
+
+  async getBestDates(destination: string, month1: string, month2: string, travelers: number, currency = "MYR"): Promise<BestDatesResponse> {
+    // Generate destination-specific data based on input
+    const destinationMap = {
+      "hoi-an-da-nang": { cities: ["Hoi An", "Da Nang"], origin: "PEN", dest: "DAD" },
+      "hanoi-halong": { cities: ["Hanoi"], origin: "PEN", dest: "HAN" },
+      "ho-chi-minh": { cities: ["Ho Chi Minh City"], origin: "PEN", dest: "SGN" },
+      "phu-quoc": { cities: ["Phu Quoc"], origin: "PEN", dest: "PQC" },
+    };
+
+    const destInfo = destinationMap[destination as keyof typeof destinationMap] || destinationMap["hoi-an-da-nang"];
+    
+    // Parse the month inputs (format: "2025-10")
+    const parseMonth = (monthStr: string) => {
+      const [year, month] = monthStr.split('-');
+      return { year: parseInt(year), month: parseInt(month) };
+    };
+
+    const month1Info = parseMonth(month1);
+    const month2Info = parseMonth(month2);
+    
+    // Generate date ranges for both months (6-day trips, 5 nights)
+    const dateRanges: DateRangeResult[] = [];
+    const tripDuration = 6;
+    const nights = 5;
+
+    // Helper function to generate dates in a month
+    const generateDatesForMonth = (year: number, month: number) => {
+      const datesInMonth: Date[] = [];
+      const daysInMonth = new Date(year, month, 0).getDate();
+      
+      // Generate possible start dates (avoid last few days of month)
+      for (let day = 1; day <= Math.min(daysInMonth - tripDuration, 25); day++) {
+        datesInMonth.push(new Date(year, month - 1, day));
+      }
+      return datesInMonth;
+    };
+
+    const month1Dates = generateDatesForMonth(month1Info.year, month1Info.month);
+    const month2Dates = generateDatesForMonth(month2Info.year, month2Info.month);
+
+    // Get base flight and hotel prices
+    const baseFlightPrice = 1045; // MYR - from sample data
+    const baseHotelPrice = 150; // MYR per night - from sample data
+
+    // Combine all possible dates from both months
+    const allDates = [...month1Dates, ...month2Dates];
+    
+    allDates.forEach((startDate, index) => {
+      const endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + tripDuration - 1);
+      
+      // Calculate seasonal pricing variations
+      const month = startDate.getMonth() + 1;
+      const isHighSeason = month >= 11 || month <= 3; // Nov-Mar is high season for Vietnam
+      const isWeekend = startDate.getDay() === 0 || startDate.getDay() === 6;
+      
+      // Apply seasonal multipliers
+      let flightMultiplier = isHighSeason ? 1.15 : 0.95;
+      let hotelMultiplier = isHighSeason ? 1.2 : 0.9;
+      
+      // Weekend surcharge
+      if (isWeekend) {
+        flightMultiplier += 0.05;
+        hotelMultiplier += 0.1;
+      }
+      
+      // Random variation to simulate real pricing
+      const randomVariation = 0.85 + (Math.random() * 0.3); // 85% to 115%
+      flightMultiplier *= randomVariation;
+      hotelMultiplier *= (0.9 + Math.random() * 0.2); // 90% to 110%
+
+      // Calculate prices in MYR first
+      const flightPriceMYR = Math.round(baseFlightPrice * flightMultiplier);
+      const hotelPricePerNightMYR = Math.round(baseHotelPrice * hotelMultiplier);
+      const hotelTotalPriceMYR = hotelPricePerNightMYR * nights;
+      
+      // Convert to target currency
+      const flightPrice = currency === "MYR" ? flightPriceMYR : 
+        Math.round(this.convertCurrency(flightPriceMYR, "MYR", currency));
+      const hotelTotalPrice = currency === "MYR" ? hotelTotalPriceMYR : 
+        Math.round(this.convertCurrency(hotelTotalPriceMYR, "MYR", currency));
+      
+      const pricePerPerson = flightPrice + hotelTotalPrice;
+      const totalPrice = pricePerPerson * travelers;
+
+      dateRanges.push({
+        id: `range-${index}`,
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+        duration: tripDuration,
+        pricePerPerson,
+        totalPrice,
+        currency: currency,
+        flightPrice,
+        hotelPrice: hotelTotalPrice,
+        savings: 0, // Will calculate after getting average
+        isRecommended: false, // Will determine after sorting
+        isDealOfTheDay: false, // Will determine after sorting
+      });
+    });
+
+    // Calculate average price for savings calculation
+    const averagePrice = Math.round(
+      dateRanges.reduce((sum, range) => sum + range.pricePerPerson, 0) / dateRanges.length
+    );
+
+    // Update savings percentage and sort by price
+    dateRanges.forEach(range => {
+      const savings = Math.round(((averagePrice - range.pricePerPerson) / averagePrice) * 100);
+      range.savings = Math.max(0, savings); // Only show positive savings
+    });
+
+    // Sort by price (cheapest first) and take top 8 results
+    const sortedRanges = dateRanges
+      .sort((a, b) => a.pricePerPerson - b.pricePerPerson)
+      .slice(0, 8);
+
+    // Mark best deals
+    if (sortedRanges.length > 0) {
+      sortedRanges[0].isDealOfTheDay = true;
+      if (sortedRanges.length > 2) {
+        sortedRanges[0].isRecommended = true;
+        sortedRanges[1].isRecommended = true;
+      }
+    }
+
+    return {
+      results: sortedRanges,
+      searchCriteria: {
+        destination,
+        month1,
+        month2,
+        travelers,
+        currency: currency,
+      },
+      averagePrice,
+      currency: currency,
+    };
   }
 }
 

@@ -157,3 +157,44 @@ export type InsertItinerary = z.infer<typeof insertItinerarySchema>;
 export type InsertTransportation = z.infer<typeof insertTransportationSchema>;
 export type BestDateRange = typeof bestDateRanges.$inferSelect;
 export type InsertBestDateRange = z.infer<typeof insertBestDateRangeSchema>;
+
+// Best dates search request schema
+export const bestDatesSearchSchema = z.object({
+  destination: z.string(),
+  month1: z.string(),
+  month2: z.string(),
+  travelers: z.number().min(1).max(8),
+  currency: z.enum(["MYR", "INR", "USD", "SGD", "VND"]).optional().default("MYR"),
+});
+
+export type BestDatesSearchRequest = z.infer<typeof bestDatesSearchSchema>;
+
+// Date range result for API response
+export interface DateRangeResult {
+  id: string;
+  startDate: string;
+  endDate: string;
+  duration: number; // days
+  pricePerPerson: number;
+  totalPrice: number;
+  currency: string;
+  flightPrice: number;
+  hotelPrice: number;
+  savings: number; // percentage savings vs average
+  isRecommended: boolean;
+  isDealOfTheDay: boolean;
+}
+
+// Best dates API response
+export interface BestDatesResponse {
+  results: DateRangeResult[];
+  searchCriteria: {
+    destination: string;
+    month1: string;
+    month2: string;
+    travelers: number;
+    currency: string;
+  };
+  averagePrice: number;
+  currency: string;
+}
