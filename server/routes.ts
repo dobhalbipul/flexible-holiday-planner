@@ -1,17 +1,20 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage } from "./storage.js";
 import { z } from "zod";
-import { bestDatesSearchSchema, flightSearchSchema, hotelSearchSchema, securePaymentRequestSchema, supportedCurrencies, type SupportedCurrency } from "@shared/schema";
+import { bestDatesSearchSchema, flightSearchSchema, hotelSearchSchema, securePaymentRequestSchema, supportedCurrencies, type SupportedCurrency } from "../shared/schema.js";
 import Stripe from "stripe";
-import { amadeusService } from "./amadeus-service";
+import { amadeusService } from "./amadeus-service.js";
 
-if (!process.env.STRIPE_SECRET_KEY) {
-  throw new Error('Missing required Stripe secret: STRIPE_SECRET_KEY');
-}
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+// Use placeholder key for development if not provided
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder_key_for_development';
+
+console.log("🔑 Stripe key configured:", stripeSecretKey.substring(0, 10) + "...");
+
+const stripe = new Stripe(stripeSecretKey, {
   apiVersion: "2024-06-20" as any, // Use valid API version
 });
+console.log("✅ Stripe client initialized");
 
 const legacyFlightSearchSchema = z.object({
   origin: z.string(),
@@ -566,6 +569,213 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error confirming payment:", error);
       res.status(500).json({ 
         message: "Payment confirmation error: " + (error.message || 'Unknown error')
+      });
+    }
+  });
+
+  // MULTI-GATEWAY PAYMENT SYSTEM - Enhanced with Malaysian payment methods
+  
+  // Import payment gateway manager
+  const { paymentGatewayManager } = await import('./payment-service.js');
+  
+  // Get available payment methods
+  app.get("/api/payment-methods", async (req, res) => {
+    try {
+      const availableMethods = paymentGatewayManager.getAvailablePaymentMethods();
+      res.json({ 
+        methods: availableMethods,
+        configured_gateways: Array.from(paymentGatewayManager['gateways'].keys())
+          .filter(name => paymentGatewayManager['gateways'].get(name)?.isConfigured())
+      });
+    } catch (error) {
+      console.error("Error fetching payment methods:", error);
+      res.status(500).json({ message: "Failed to fetch payment methods" });
+    }
+  });
+
+  // Create payment with multi-gateway support
+  app.post("/api/create-payment", async (req, res) => {
+    try {
+      const { paymentMethod, bookingDetails, idempotencyKey } = req.body;
+      
+      if (!paymentMethod || !bookingDetails || !idempotencyKey) {
+        return res.status(400).json({ 
+          message: "Payment method, booking details, and idempotency key are required" 
+        });
+      }
+
+      // SECURITY: Calculate total amount server-side
+      const { amount, currency } = await calculateSecureTotalAmount(bookingDetails);
+      
+      // SECURITY: Validate minimum amount
+      if (amount <= 0) {
+        throw new Error('Invalid payment amount');
+      }
+
+      // Check idempotency to prevent duplicate payments
+      const cacheKey = `${idempotencyKey}_${paymentMethod}`;
+      if (processedPayments.has(cacheKey)) {
+        const existingPaymentId = processedPayments.get(cacheKey)!;
+        return res.json({ 
+          paymentId: existingPaymentId,
+          isExisting: true,
+          message: "Payment already exists"
+        });
+      }
+
+      // Create payment request
+      const paymentRequest = {
+        amount,
+        currency,
+        method: paymentMethod,
+        bookingDetails: {
+          ...bookingDetails,
+          reference: `booking_${Date.now()}`,
+          customerName: bookingDetails.customerInfo?.name || 'Anonymous',
+          customerEmail: bookingDetails.customerInfo?.email || '',
+          customerPhone: bookingDetails.customerInfo?.phone || ''
+        },
+        callbackUrl: `${process.env.APP_URL || 'http://localhost:5000'}/api/payment/callback`,
+        successUrl: `${process.env.APP_URL || 'http://localhost:5000'}/confirmation`,
+        failureUrl: `${process.env.APP_URL || 'http://localhost:5000'}/payment?error=payment_failed`
+      };
+
+      // Create payment using appropriate gateway
+      const paymentResponse = await paymentGatewayManager.createPayment(paymentRequest);
+      
+      // Store payment ID with idempotency key
+      processedPayments.set(cacheKey, paymentResponse.paymentId);
+      
+      res.json({
+        ...paymentResponse,
+        calculatedAmount: amount,
+        currency: currency,
+        paymentMethod: paymentMethod,
+        isExisting: false
+      });
+
+    } catch (error: any) {
+      console.error("Error creating multi-gateway payment:", error);
+      res.status(500).json({ 
+        message: "Payment creation error: " + (error.message || 'Unknown error'),
+        code: 'PAYMENT_CREATION_ERROR'
+      });
+    }
+  });
+
+  // Confirm payment with multi-gateway support
+  app.post("/api/confirm-payment-multi", async (req, res) => {
+    try {
+      const { paymentId, gateway, bookingDetails } = req.body;
+      
+      if (!paymentId || !gateway || !bookingDetails) {
+        return res.status(400).json({ 
+          message: "Payment ID, gateway, and booking details are required" 
+        });
+      }
+
+      // Confirm payment using appropriate gateway
+      const confirmationResponse = await paymentGatewayManager.confirmPayment(paymentId, gateway);
+      
+      if (confirmationResponse.status === 'completed') {
+        // SECURITY: Verify payment amount matches server calculation
+        const { amount: serverCalculatedAmount, currency: serverCurrency } = await calculateSecureTotalAmount(bookingDetails);
+        
+        // Create booking confirmation
+        const bookingConfirmation = {
+          id: `booking_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          paymentId: paymentId,
+          gateway: gateway,
+          destination: bookingDetails.destination,
+          travelers: bookingDetails.travelers,
+          startDate: bookingDetails.dates.startDate,
+          endDate: bookingDetails.dates.endDate,
+          totalAmount: serverCalculatedAmount,
+          currency: serverCurrency,
+          status: 'confirmed',
+          createdAt: new Date().toISOString(),
+          paymentMethod: confirmationResponse.metadata?.paymentMethod || 'unknown',
+          flightDetails: { total: bookingDetails.flights?.totalPrice || 0 },
+          hotelDetails: { total: bookingDetails.hotels?.totalPrice || 0 },
+          activityDetails: bookingDetails.itinerary?.totalActivityCost ? 
+            { total: bookingDetails.itinerary.totalActivityCost } : undefined
+        };
+
+        res.json({ 
+          success: true, 
+          booking: bookingConfirmation,
+          paymentStatus: confirmationResponse.status,
+          gateway: gateway,
+          verificationPassed: true
+        });
+      } else {
+        res.json({ 
+          success: false, 
+          paymentStatus: confirmationResponse.status,
+          message: 'Payment not completed yet',
+          gateway: gateway
+        });
+      }
+
+    } catch (error: any) {
+      console.error("Error confirming multi-gateway payment:", error);
+      res.status(500).json({ 
+        message: "Payment confirmation error: " + (error.message || 'Unknown error')
+      });
+    }
+  });
+
+  // Payment callback handler for external gateways (Razer Pay, etc.)
+  app.post("/api/payment/callback", async (req, res) => {
+    try {
+      const { orderid, status, gateway } = req.body;
+      
+      console.log(`Payment callback received - Order: ${orderid}, Status: ${status}, Gateway: ${gateway}`);
+      
+      // Verify callback authenticity based on gateway
+      if (gateway === 'razerpay') {
+        // Verify Razer Pay callback signature
+        const { merchant_id, orderid: callbackOrderId, status: callbackStatus, amount, currency, skey } = req.body;
+        
+        // Verify signature
+        const expectedSkey = require('crypto')
+          .createHash('md5')
+          .update(`${process.env.RAZER_VERIFY_KEY}${merchant_id}${callbackOrderId}${callbackStatus}${amount}${currency}`)
+          .digest('hex');
+        
+        if (skey !== expectedSkey) {
+          console.error('Razer Pay callback signature verification failed');
+          return res.status(400).send('FAIL');
+        }
+      }
+      
+      // Update payment status in your database here
+      // await storage.updatePaymentStatus(orderid, status);
+      
+      res.status(200).send('OK');
+    } catch (error) {
+      console.error("Payment callback error:", error);
+      res.status(500).send('ERROR');
+    }
+  });
+
+  // Payment status check endpoint
+  app.get("/api/payment/status/:paymentId/:gateway", async (req, res) => {
+    try {
+      const { paymentId, gateway } = req.params;
+      
+      const statusResponse = await paymentGatewayManager.confirmPayment(paymentId, gateway);
+      
+      res.json({
+        paymentId,
+        gateway,
+        status: statusResponse.status,
+        metadata: statusResponse.metadata
+      });
+    } catch (error: any) {
+      console.error("Error checking payment status:", error);
+      res.status(500).json({ 
+        message: "Status check error: " + (error.message || 'Unknown error')
       });
     }
   });

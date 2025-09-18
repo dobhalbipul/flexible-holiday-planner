@@ -1,10 +1,18 @@
+import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+import { registerRoutes } from "./routes.js";
+import { setupVite, serveStatic, log } from "./vite.js";
+
+console.log("🚀 Server starting...");
+console.log("🔧 Environment:", process.env.NODE_ENV || 'development');
+console.log("🌐 Port:", process.env.PORT || '5000');
 
 const app = express();
+console.log("✅ Express app created");
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+console.log("✅ Middleware configured");
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -37,7 +45,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  console.log("🔧 Starting async setup...");
+  
   const server = await registerRoutes(app);
+  console.log("✅ Routes registered");
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -46,6 +57,7 @@ app.use((req, res, next) => {
     res.status(status).json({ message });
     throw err;
   });
+  console.log("✅ Error handler configured");
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
@@ -61,11 +73,7 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
+  server.listen(port, "localhost", () => {
     log(`serving on port ${port}`);
   });
 })();

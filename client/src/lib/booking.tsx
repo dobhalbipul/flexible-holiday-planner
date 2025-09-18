@@ -261,14 +261,29 @@ export const BookingProvider = ({ children }: BookingProviderProps) => {
     setSelectedItinerary(updatedItinerary);
   };
 
-  // Load saved data from sessionStorage on mount
+  // Load persisted data from sessionStorage
   useEffect(() => {
     const savedCriteria = sessionStorage.getItem("bookingSearchCriteria");
     const savedDates = sessionStorage.getItem("bookingSelectedDates");
     const savedFlights = sessionStorage.getItem("bookingSelectedFlights");
     const savedHotels = sessionStorage.getItem("bookingSelectedHotels");
     const savedItinerary = sessionStorage.getItem("bookingSelectedItinerary");
-    
+
+    // Set default test data for development/testing
+    if (!savedDates) {
+      const defaultDates: SelectedDates = {
+        startDate: '2025-10-15',
+        endDate: '2025-10-20',
+        duration: 5,
+        pricePerPerson: 850,
+        totalPrice: 1700,
+        currency: 'MYR',
+        dateRangeId: 'test-default'
+      };
+      setSelectedDatesState(defaultDates);
+      sessionStorage.setItem("bookingSelectedDates", JSON.stringify(defaultDates));
+    }
+
     if (savedCriteria) {
       try {
         setSearchCriteriaState(JSON.parse(savedCriteria));
@@ -285,37 +300,7 @@ export const BookingProvider = ({ children }: BookingProviderProps) => {
         console.warn("Failed to parse saved selected dates:", error);
         sessionStorage.removeItem("bookingSelectedDates");
       }
-    }
-
-    if (savedFlights) {
-      try {
-        setSelectedFlightsState(JSON.parse(savedFlights));
-      } catch (error) {
-        console.warn("Failed to parse saved selected flights:", error);
-        sessionStorage.removeItem("bookingSelectedFlights");
-      }
-    }
-
-    if (savedHotels) {
-      try {
-        setSelectedHotelsState(JSON.parse(savedHotels));
-      } catch (error) {
-        console.warn("Failed to parse saved selected hotels:", error);
-        sessionStorage.removeItem("bookingSelectedHotels");
-      }
-    }
-
-    if (savedItinerary) {
-      try {
-        setSelectedItineraryState(JSON.parse(savedItinerary));
-      } catch (error) {
-        console.warn("Failed to parse saved selected itinerary:", error);
-        sessionStorage.removeItem("bookingSelectedItinerary");
-      }
-    }
-  }, []);
-
-  return (
+    }  return (
     <BookingContext.Provider
       value={{
         searchCriteria,
