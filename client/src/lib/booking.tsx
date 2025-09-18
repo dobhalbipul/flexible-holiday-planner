@@ -67,6 +67,30 @@ export interface SelectedHotels {
   currency: string;
 }
 
+export interface ItineraryActivity {
+  id: string;
+  name: string;
+  description: string;
+  duration: string;
+  price: number;
+  currency: string;
+  category: string;
+  timeSlot: 'morning' | 'afternoon' | 'evening';
+  imageUrl?: string;
+}
+
+export interface ItineraryDay {
+  date: string;
+  dayNumber: number;
+  activities: ItineraryActivity[];
+}
+
+export interface SelectedItinerary {
+  days: ItineraryDay[];
+  totalActivityCost: number;
+  currency: string;
+}
+
 export interface BookingContextType {
   searchCriteria: SearchCriteria | null;
   setSearchCriteria: (criteria: SearchCriteria) => void;
@@ -80,6 +104,11 @@ export interface BookingContextType {
   selectedHotels: SelectedHotels | null;
   setSelectedHotels: (hotels: SelectedHotels) => void;
   clearSelectedHotels: () => void;
+  selectedItinerary: SelectedItinerary | null;
+  setSelectedItinerary: (itinerary: SelectedItinerary) => void;
+  clearSelectedItinerary: () => void;
+  addActivityToDay: (dayIndex: number, activity: ItineraryActivity) => void;
+  removeActivityFromDay: (dayIndex: number, activityId: string) => void;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
 }
@@ -95,6 +124,7 @@ export const BookingProvider = ({ children }: BookingProviderProps) => {
   const [selectedDates, setSelectedDatesState] = useState<SelectedDates | null>(null);
   const [selectedFlights, setSelectedFlightsState] = useState<SelectedFlights | null>(null);
   const [selectedHotels, setSelectedHotelsState] = useState<SelectedHotels | null>(null);
+  const [selectedItinerary, setSelectedItineraryState] = useState<SelectedItinerary | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const setSearchCriteria = (criteria: SearchCriteria) => {
@@ -115,10 +145,12 @@ export const BookingProvider = ({ children }: BookingProviderProps) => {
     setSelectedDatesState(null);
     setSelectedFlightsState(null);
     setSelectedHotelsState(null);
+    setSelectedItineraryState(null);
     sessionStorage.removeItem("bookingSearchCriteria");
     sessionStorage.removeItem("bookingSelectedDates");
     sessionStorage.removeItem("bookingSelectedFlights");
     sessionStorage.removeItem("bookingSelectedHotels");
+    sessionStorage.removeItem("bookingSelectedItinerary");
   };
 
   const setSelectedDates = (dates: SelectedDates) => {
@@ -168,12 +200,74 @@ export const BookingProvider = ({ children }: BookingProviderProps) => {
     sessionStorage.removeItem("bookingSelectedHotels");
   };
 
+  const setSelectedItinerary = (itinerary: SelectedItinerary) => {
+    setSelectedItineraryState(itinerary);
+    // Persist selected itinerary to sessionStorage
+    sessionStorage.setItem("bookingSelectedItinerary", JSON.stringify(itinerary));
+  };
+
+  const clearSelectedItinerary = () => {
+    setSelectedItineraryState(null);
+    sessionStorage.removeItem("bookingSelectedItinerary");
+  };
+
+  const addActivityToDay = (dayIndex: number, activity: ItineraryActivity) => {
+    if (!selectedItinerary) return;
+    
+    const updatedItinerary = {
+      ...selectedItinerary,
+      days: selectedItinerary.days.map((day, index) => {
+        if (index === dayIndex) {
+          return {
+            ...day,
+            activities: [...day.activities, activity]
+          };
+        }
+        return day;
+      })
+    };
+    
+    // Recalculate total cost
+    const totalActivityCost = updatedItinerary.days.reduce((dayTotal, day) => {
+      return dayTotal + day.activities.reduce((actTotal, act) => actTotal + act.price, 0);
+    }, 0);
+    
+    updatedItinerary.totalActivityCost = totalActivityCost;
+    setSelectedItinerary(updatedItinerary);
+  };
+
+  const removeActivityFromDay = (dayIndex: number, activityId: string) => {
+    if (!selectedItinerary) return;
+    
+    const updatedItinerary = {
+      ...selectedItinerary,
+      days: selectedItinerary.days.map((day, index) => {
+        if (index === dayIndex) {
+          return {
+            ...day,
+            activities: day.activities.filter(activity => activity.id !== activityId)
+          };
+        }
+        return day;
+      })
+    };
+    
+    // Recalculate total cost
+    const totalActivityCost = updatedItinerary.days.reduce((dayTotal, day) => {
+      return dayTotal + day.activities.reduce((actTotal, act) => actTotal + act.price, 0);
+    }, 0);
+    
+    updatedItinerary.totalActivityCost = totalActivityCost;
+    setSelectedItinerary(updatedItinerary);
+  };
+
   // Load saved data from sessionStorage on mount
   useEffect(() => {
     const savedCriteria = sessionStorage.getItem("bookingSearchCriteria");
     const savedDates = sessionStorage.getItem("bookingSelectedDates");
     const savedFlights = sessionStorage.getItem("bookingSelectedFlights");
     const savedHotels = sessionStorage.getItem("bookingSelectedHotels");
+    const savedItinerary = sessionStorage.getItem("bookingSelectedItinerary");
     
     if (savedCriteria) {
       try {
@@ -210,6 +304,15 @@ export const BookingProvider = ({ children }: BookingProviderProps) => {
         sessionStorage.removeItem("bookingSelectedHotels");
       }
     }
+
+    if (savedItinerary) {
+      try {
+        setSelectedItineraryState(JSON.parse(savedItinerary));
+      } catch (error) {
+        console.warn("Failed to parse saved selected itinerary:", error);
+        sessionStorage.removeItem("bookingSelectedItinerary");
+      }
+    }
   }, []);
 
   return (
@@ -227,6 +330,11 @@ export const BookingProvider = ({ children }: BookingProviderProps) => {
         selectedHotels,
         setSelectedHotels,
         clearSelectedHotels,
+        selectedItinerary,
+        setSelectedItinerary,
+        clearSelectedItinerary,
+        addActivityToDay,
+        removeActivityFromDay,
         isLoading,
         setIsLoading,
       }}

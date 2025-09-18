@@ -10,6 +10,7 @@ import BestDates from "@/pages/best-dates";
 import Flights from "@/pages/flights";
 import Hotels from "@/pages/hotels";
 import Itinerary from "@/pages/itinerary";
+import Summary from "@/pages/summary";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -20,6 +21,7 @@ function Router() {
       <Route path="/flights" component={Flights} />
       <Route path="/hotels" component={Hotels} />
       <Route path="/itinerary" component={Itinerary} />
+      <Route path="/summary" component={Summary} />
       <Route component={NotFound} />
     </Switch>
   );

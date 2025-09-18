@@ -121,7 +121,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Activities by city
+  // Activities search with city query parameter
+  app.get("/api/activities", async (req, res) => {
+    try {
+      const { city } = req.query;
+      if (!city || typeof city !== 'string') {
+        return res.status(400).json({ message: "City parameter is required" });
+      }
+      const activities = await storage.getActivitiesByCity(city);
+      res.json(activities);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid search parameters" });
+    }
+  });
+
+  // Activities by city (legacy route for backward compatibility)
   app.get("/api/activities/:city", async (req, res) => {
     try {
       const { city } = req.params;
