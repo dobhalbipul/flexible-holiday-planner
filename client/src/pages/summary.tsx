@@ -1,12 +1,16 @@
 import { useLocation } from "wouter";
+import { useState } from "react";
 import { useBooking } from "@/lib/booking";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { MapPin, Calendar, Users, ArrowLeft, Plane, Hotel, CheckCircle, CalendarDays, DollarSign } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { MapPin, Calendar, Users, ArrowLeft, Plane, Hotel, CheckCircle, CalendarDays, DollarSign, Edit2, CreditCard } from "lucide-react";
 
 export default function Summary() {
   const [, setLocation] = useLocation();
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const { 
     searchCriteria, 
     selectedDates, 
@@ -57,6 +61,33 @@ export default function Summary() {
     const hotelCost = selectedHotels?.totalPrice || 0;
     const activityCost = selectedItinerary?.totalActivityCost || 0;
     return flightCost + hotelCost + activityCost;
+  };
+
+  const getCostPerPerson = () => {
+    const totalCost = getTotalCost();
+    const travelers = searchCriteria?.travelers || 1;
+    return totalCost / travelers;
+  };
+
+  const handleEditFlights = () => {
+    setLocation("/flights");
+  };
+
+  const handleEditHotels = () => {
+    setLocation("/hotels");
+  };
+
+  const handleEditItinerary = () => {
+    setLocation("/itinerary");
+  };
+
+  const handleProceedToPayment = () => {
+    if (!termsAccepted) {
+      alert("Please accept the terms and conditions to proceed.");
+      return;
+    }
+    // In a real app, this would navigate to payment processing
+    alert("In a real application, this would redirect to secure payment processing.");
   };
 
   if (!searchCriteria || !selectedDates || !selectedFlights || !selectedHotels) {
@@ -151,10 +182,22 @@ export default function Summary() {
 
               {/* Flight Summary */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold flex items-center space-x-2">
-                  <Plane className="h-5 w-5" />
-                  <span>Flight Details</span>
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold flex items-center space-x-2">
+                    <Plane className="h-5 w-5" />
+                    <span>Flight Details</span>
+                  </h3>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleEditFlights}
+                    className="flex items-center space-x-1"
+                    data-testid="button-edit-flights"
+                  >
+                    <Edit2 className="h-3 w-3" />
+                    <span>Edit</span>
+                  </Button>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="border border-border rounded-lg p-4">
                     <h4 className="font-medium mb-2">Outbound Flight</h4>
@@ -187,10 +230,22 @@ export default function Summary() {
 
               {/* Hotel Summary */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold flex items-center space-x-2">
-                  <Hotel className="h-5 w-5" />
-                  <span>Hotel Accommodations</span>
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold flex items-center space-x-2">
+                    <Hotel className="h-5 w-5" />
+                    <span>Hotel Accommodations</span>
+                  </h3>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleEditHotels}
+                    className="flex items-center space-x-1"
+                    data-testid="button-edit-hotels"
+                  >
+                    <Edit2 className="h-3 w-3" />
+                    <span>Edit</span>
+                  </Button>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {selectedHotels.hotels.map((hotel) => (
                     <div key={hotel.id} className="border border-border rounded-lg p-4">
@@ -211,10 +266,22 @@ export default function Summary() {
               {/* Itinerary Summary */}
               {selectedItinerary && (
                 <div className="space-y-4">
-                  <h3 className="text-lg font-semibold flex items-center space-x-2">
-                    <CalendarDays className="h-5 w-5" />
-                    <span>Daily Itinerary</span>
-                  </h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold flex items-center space-x-2">
+                      <CalendarDays className="h-5 w-5" />
+                      <span>Daily Itinerary</span>
+                    </h3>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleEditItinerary}
+                      className="flex items-center space-x-1"
+                      data-testid="button-edit-itinerary"
+                    >
+                      <Edit2 className="h-3 w-3" />
+                      <span>Edit</span>
+                    </Button>
+                  </div>
                   <div className="space-y-4">
                     {selectedItinerary.days.map((day, index) => (
                       <div key={index} className="border border-border rounded-lg p-4">
@@ -244,38 +311,91 @@ export default function Summary() {
                 </div>
               )}
 
-              {/* Total Cost Breakdown */}
+              {/* Enhanced Cost Breakdown */}
               <div className="border-t border-border pt-6">
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span>Flights</span>
-                    <span data-testid="text-flights-cost">
-                      {formatCurrency(selectedFlights.totalPrice, selectedFlights.currency)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span>Hotels</span>
-                    <span data-testid="text-hotels-cost">
-                      {formatCurrency(selectedHotels.totalPrice, selectedHotels.currency)}
-                    </span>
-                  </div>
-                  {selectedItinerary && (
+                <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2">
+                  <DollarSign className="h-5 w-5" />
+                  <span>Cost Breakdown</span>
+                </h3>
+                <div className="bg-muted/30 rounded-lg p-4 space-y-4">
+                  {/* Per Category Costs */}
+                  <div className="space-y-3">
                     <div className="flex justify-between items-center">
-                      <span>Activities</span>
-                      <span data-testid="text-activities-cost">
-                        {formatCurrency(selectedItinerary.totalActivityCost, selectedHotels.currency)}
+                      <div className="flex items-center space-x-2">
+                        <Plane className="h-4 w-4 text-muted-foreground" />
+                        <span>Flights</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {searchCriteria.travelers} travelers
+                        </Badge>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-medium" data-testid="text-flights-cost">
+                          {formatCurrency(selectedFlights.totalPrice, selectedFlights.currency)}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {formatCurrency(selectedFlights.totalPrice / searchCriteria.travelers, selectedFlights.currency)} per person
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center space-x-2">
+                        <Hotel className="h-4 w-4 text-muted-foreground" />
+                        <span>Hotels</span>
+                        <Badge variant="secondary" className="text-xs">
+                          {selectedDates.duration - 1} nights
+                        </Badge>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-medium" data-testid="text-hotels-cost">
+                          {formatCurrency(selectedHotels.totalPrice, selectedHotels.currency)}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {formatCurrency(selectedHotels.totalPrice / searchCriteria.travelers, selectedHotels.currency)} per person
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {selectedItinerary && (
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center space-x-2">
+                          <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                          <span>Activities</span>
+                          <Badge variant="secondary" className="text-xs">
+                            {selectedItinerary.days.reduce((total, day) => total + day.activities.length, 0)} activities
+                          </Badge>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-medium" data-testid="text-activities-cost">
+                            {formatCurrency(selectedItinerary.totalActivityCost, selectedHotels.currency)}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {formatCurrency(selectedItinerary.totalActivityCost / searchCriteria.travelers, selectedHotels.currency)} per person
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <Separator />
+                  
+                  {/* Total Summary */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-lg font-bold">
+                      <span>Total Trip Cost</span>
+                      <span className="text-primary" data-testid="text-total-cost">
+                        {formatCurrency(getTotalCost(), selectedHotels.currency)}
                       </span>
                     </div>
-                  )}
-                  <Separator />
-                  <div className="flex justify-between items-center text-xl font-bold">
-                    <span>Total Trip Cost</span>
-                    <span className="text-primary" data-testid="text-total-cost">
-                      {formatCurrency(getTotalCost(), selectedHotels.currency)}
-                    </span>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    For {searchCriteria.travelers} {searchCriteria.travelers === 1 ? 'traveler' : 'travelers'}
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">Cost per person</span>
+                      <span className="font-medium" data-testid="text-cost-per-person">
+                        {formatCurrency(getCostPerPerson(), selectedHotels.currency)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground text-right">
+                      For {searchCriteria.travelers} {searchCriteria.travelers === 1 ? 'traveler' : 'travelers'} × {selectedDates.duration} days
+                    </div>
                   </div>
                 </div>
               </div>
@@ -283,23 +403,80 @@ export default function Summary() {
           </CardContent>
         </Card>
 
-        {/* Final Actions */}
+        {/* Terms & Conditions and Final Actions */}
         <Card>
           <CardHeader>
-            <CardTitle>Ready to Book!</CardTitle>
+            <CardTitle className="flex items-center space-x-2">
+              <CreditCard className="h-5 w-5" />
+              <span>Review & Payment</span>
+            </CardTitle>
             <CardDescription>
-              Your complete trip summary is ready. In a full application, this would proceed to payment processing.
+              Please review your trip details above and accept our terms before proceeding to secure payment.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Button className="flex-1" size="lg" data-testid="button-proceed-to-booking">
-                <DollarSign className="h-4 w-4 mr-2" />
-                Proceed to Booking
-              </Button>
-              <Button variant="outline" onClick={handleBackToItinerary} data-testid="button-modify-itinerary">
-                Modify Itinerary
-              </Button>
+            <div className="space-y-6">
+              {/* Terms and Conditions */}
+              <div className="flex items-start space-x-3 p-4 bg-muted/50 rounded-lg">
+                <Checkbox 
+                  id="terms" 
+                  checked={termsAccepted}
+                  onCheckedChange={(checked) => setTermsAccepted(checked as boolean)}
+                  data-testid="checkbox-terms"
+                  className="mt-1"
+                />
+                <div className="space-y-1">
+                  <label 
+                    htmlFor="terms" 
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                  >
+                    I accept the terms and conditions
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    By proceeding, you agree to our{" "}
+                    <button className="text-primary hover:underline" type="button">
+                      Terms of Service
+                    </button>{" "}
+                    and{" "}
+                    <button className="text-primary hover:underline" type="button">
+                      Privacy Policy
+                    </button>
+                    . All prices are final and bookings are subject to availability.
+                  </p>
+                </div>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Button 
+                  className="flex-1" 
+                  size="lg" 
+                  onClick={handleProceedToPayment}
+                  disabled={!termsAccepted}
+                  data-testid="button-proceed-to-payment"
+                >
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Proceed to Payment
+                  <span className="ml-2 font-normal text-sm">
+                    ({formatCurrency(getTotalCost(), selectedHotels.currency)})
+                  </span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={handleBackToItinerary} 
+                  data-testid="button-modify-itinerary"
+                  size="lg"
+                >
+                  <Edit2 className="h-4 w-4 mr-2" />
+                  Modify Trip
+                </Button>
+              </div>
+              
+              {/* Security Notice */}
+              <div className="text-xs text-muted-foreground text-center border-t border-border pt-4">
+                🔒 Your payment information is secured with 256-bit SSL encryption. 
+                We do not store your payment details.
+              </div>
             </div>
           </CardContent>
         </Card>
